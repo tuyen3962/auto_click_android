@@ -7,10 +7,16 @@ import android.content.res.Configuration
 import android.graphics.PixelFormat
 import android.os.Build
 import android.os.IBinder
+import android.util.Log
+import android.view.Gravity
 import android.view.LayoutInflater
 import android.view.View
 import android.view.WindowManager
+import android.widget.ImageView
 import android.widget.TextView
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import com.example.autoclickapp.R
 import com.example.autoclickapp.TouchAndDragListener
 import com.example.autoclickapp.dp2px
@@ -25,13 +31,19 @@ import kotlin.concurrent.fixedRateTimer
  */
 class FloatingClickService : Service() {
     private lateinit var manager: WindowManager
-    private lateinit var view: View
-    private lateinit var params: WindowManager.LayoutParams
+    private lateinit var autoTapView: View
+    private lateinit var settingView: View
+    private lateinit var autoTapParams: WindowManager.LayoutParams
+    private lateinit var settingParams: WindowManager.LayoutParams
     private var xForRecord = 0
     private var yForRecord = 0
     private val location = IntArray(2)
     private var startDragDistance: Int = 0
     private var timer: Timer? = null
+    var isPlay = false
+
+//    val interactionSource: MutableInteractionSource = remember { MutableInteractionSource() }
+//    val coroutine = rememberCoroutineScope()
 
     override fun onBind(intent: Intent): IBinder? {
         return null
@@ -40,7 +52,8 @@ class FloatingClickService : Service() {
     override fun onCreate() {
         super.onCreate()
         startDragDistance = dp2px(10f)
-        view = LayoutInflater.from(this).inflate(R.layout.widget, null)
+        autoTapView = LayoutInflater.from(this).inflate(R.layout.widget, null)
+        settingView = LayoutInflater.from(this).inflate(R.layout.auto_click_setting, null)
 
         //setting the layout parameters
         val overlayParam =
@@ -49,22 +62,51 @@ class FloatingClickService : Service() {
                 } else {
                     WindowManager.LayoutParams.TYPE_PHONE
                 }
-        params = WindowManager.LayoutParams(
+        autoTapParams = WindowManager.LayoutParams(
                 WindowManager.LayoutParams.WRAP_CONTENT,
                 WindowManager.LayoutParams.WRAP_CONTENT,
                 overlayParam,
                 WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE,
                 PixelFormat.TRANSLUCENT)
 
+        settingParams = WindowManager.LayoutParams(
+            WindowManager.LayoutParams.WRAP_CONTENT,
+            WindowManager.LayoutParams.WRAP_CONTENT,
+            overlayParam,
+            WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE,
+            PixelFormat.TRANSLUCENT)
+
+        settingParams.gravity = Gravity.LEFT or Gravity.CENTER
 
         //getting windows services and adding the floating view to it
         manager = getSystemService(Context.WINDOW_SERVICE) as WindowManager
-        manager.addView(view, params)
+        manager.addView(autoTapView, autoTapParams)
+        manager.addView(settingView, settingParams)
 
         //adding an touchlistener to make drag movement of the floating widget
-        view.setOnTouchListener(TouchAndDragListener(params, startDragDistance,
-                { viewOnClick() },
-                { manager.updateViewLayout(view, params) }))
+        autoTapView.setOnTouchListener(TouchAndDragListener(autoTapParams, startDragDistance,
+                {  },
+                { manager.updateViewLayout(autoTapView, autoTapParams) }))
+
+        settingView.findViewById<ImageView>(R.id.play_icon).setOnClickListener {
+            isPlay = !isPlay
+            if(isPlay) {
+                settingView.findViewById<ImageView>(R.id.play_icon).setImageResource(R.drawable.setting)
+            } else {
+                settingView.findViewById<ImageView>(R.id.play_icon).setImageResource(R.drawable.play)
+            }
+            viewOnClick()
+        }
+
+        settingView.setOnTouchListener(TouchAndDragListener(settingParams, startDragDistance,
+            {
+
+            },
+            {
+                if(!isPlay) {
+                    manager.updateViewLayout(settingView, settingParams)
+                }
+            }))
     }
 
     private var isOn = false
@@ -74,13 +116,15 @@ class FloatingClickService : Service() {
         } else {
             timer = fixedRateTimer(initialDelay = 0,
                     period = 200) {
-                view.getLocationOnScreen(location)
-                autoClickService?.click(location[0] + view.right + 10,
-                        location[1] + view.bottom + 10)
+                autoTapView.getLocationOnScreen(location)
+                Log.i("LOCATION", location[0].toString())
+                Log.i("LOCATION", location[1].toString())
+                autoClickService?.click(location[0] + autoTapView.right+1,
+                        location[1] + autoTapView.bottom+1)
             }
         }
         isOn = !isOn
-        (view as TextView).text = if (isOn) "ON" else "OFF"
+//        (autoTapView as TextView).text = if (isOn) "ON" else "OFF"
 
     }
 
@@ -88,18 +132,7 @@ class FloatingClickService : Service() {
         super.onDestroy()
         "FloatingClickService onDestroy".logd()
         timer?.cancel()
-        manager.removeView(view)
+        manager.removeView(autoTapView)
+        manager.removeView(settingView)
     }
-
-//     fun onConfigurationChanged(newConfig: Configuration?) {
-//        super.onConfigurationChanged(newConfig)
-//        "FloatingClickService onConfigurationChanged".logd()
-//        val x = params.x
-//        val y = params.y
-//        params.x = xForRecord
-//        params.y = yForRecord
-//        xForRecord = x
-//        yForRecord = y
-//        manager.updateViewLayout(view, params)
-//    }
 }
