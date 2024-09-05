@@ -3,4 +3,8 @@
     <string name="accessibility_service_description">TODO</string>
     <string name="accessibility_service_name">AutoClickService</string>
     <string name="accessibility_service_id">com.example.autoclickapp/.service.AutoClickService</string>
+    <string name="hour_click_time">hour_click_time</string>
+    <string name="minute_click_time">minute_click_time</string>
+    <string name="second_click_time">second_click_time</string>
+    <string name="millisecond_click_time">millisecond_click_time</string>
 </resources>

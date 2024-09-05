@@ -63,6 +63,8 @@ dependencies {
     implementation("androidx.constraintlayout:constraintlayout:2.2.0-alpha14")
     // To use constraintlayout in compose
     implementation("androidx.constraintlayout:constraintlayout-compose:1.1.0-alpha14")
+    implementation("com.squareup.okhttp3:okhttp:3.8.1")
+    implementation("com.google.code.gson:gson:2.8.8")
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.espresso.core)

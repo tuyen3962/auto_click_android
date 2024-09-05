@@ -21,6 +21,14 @@ import com.example.autoclickapp.R
 import com.example.autoclickapp.TouchAndDragListener
 import com.example.autoclickapp.dp2px
 import com.example.autoclickapp.logd
+import com.google.gson.JsonObject
+import com.google.gson.JsonParser
+import okhttp3.Call
+import okhttp3.Callback
+import okhttp3.OkHttpClient
+import okhttp3.Request
+import okhttp3.Response
+import java.io.IOException
 import java.util.*
 import kotlin.concurrent.fixedRateTimer
 
@@ -33,14 +41,19 @@ class FloatingClickService : Service() {
     private lateinit var manager: WindowManager
     private lateinit var autoTapView: View
     private lateinit var settingView: View
+    private lateinit var timeView: View
     private lateinit var autoTapParams: WindowManager.LayoutParams
     private lateinit var settingParams: WindowManager.LayoutParams
+    private lateinit var timeParams: WindowManager.LayoutParams
     private var xForRecord = 0
     private var yForRecord = 0
     private val location = IntArray(2)
     private var startDragDistance: Int = 0
     private var timer: Timer? = null
     var isPlay = false
+
+    private val client = OkHttpClient()
+    private val apiUrl = "https://timeapi.io/api/Time/current/zone?timeZone=Asia/Ho_Chi_Minh"
 
 //    val interactionSource: MutableInteractionSource = remember { MutableInteractionSource() }
 //    val coroutine = rememberCoroutineScope()
@@ -54,6 +67,7 @@ class FloatingClickService : Service() {
         startDragDistance = dp2px(10f)
         autoTapView = LayoutInflater.from(this).inflate(R.layout.widget, null)
         settingView = LayoutInflater.from(this).inflate(R.layout.auto_click_setting, null)
+        timeView = LayoutInflater.from(this).inflate(R.layout.auto_time, null)
 
         //setting the layout parameters
         val overlayParam =
@@ -76,12 +90,21 @@ class FloatingClickService : Service() {
             WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE,
             PixelFormat.TRANSLUCENT)
 
+        timeParams = WindowManager.LayoutParams(
+            WindowManager.LayoutParams.WRAP_CONTENT,
+            WindowManager.LayoutParams.WRAP_CONTENT,
+            overlayParam,
+            WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE,
+            PixelFormat.TRANSLUCENT)
+
         settingParams.gravity = Gravity.LEFT or Gravity.CENTER
+        timeParams.gravity = Gravity.TOP or Gravity.LEFT
 
         //getting windows services and adding the floating view to it
         manager = getSystemService(Context.WINDOW_SERVICE) as WindowManager
         manager.addView(autoTapView, autoTapParams)
         manager.addView(settingView, settingParams)
+        manager.addView(timeView, timeParams)
 
         //adding an touchlistener to make drag movement of the floating widget
         autoTapView.setOnTouchListener(TouchAndDragListener(autoTapParams, startDragDistance,
@@ -103,10 +126,46 @@ class FloatingClickService : Service() {
 
             },
             {
-                if(!isPlay) {
+                if(!isOn) {
                     manager.updateViewLayout(settingView, settingParams)
                 }
             }))
+
+        timeView.setOnTouchListener(TouchAndDragListener(timeParams, startDragDistance,
+            { },
+            {    manager.updateViewLayout(timeView, timeParams) }))
+
+        onCallTimeAPI()
+    }
+
+    private fun onCallTimeAPI() {
+        val request = Request.Builder().url(apiUrl).build()
+
+        client.newCall(request).enqueue(object  : Callback {
+            override fun onFailure(call: Call, e: IOException) {
+                Log.e("API", e.toString())
+            }
+
+            override fun onResponse(call: Call, response: Response) {
+                val jsonObject: JsonObject? = try {
+                    JsonParser.parseString(response.body()?.string()).asJsonObject
+                } catch (e: Exception) {
+                    null // Handle the exception, e.g., return null or log the error
+                }
+                if (jsonObject != null) {
+
+                    val hour = jsonObject.get("hour").asInt
+                    val minute = jsonObject.get("minute").asInt
+                    val seconds = jsonObject.get("seconds").asInt
+                    val milliSeconds = jsonObject.get("milliSeconds").asInt
+                    val fullTime = String.format("%d:%d:%d:%d", hour, minute, seconds, milliSeconds)
+                    timeView.findViewById<TextView>(R.id.auto_time_text).text = fullTime
+                } else {
+                    println("Invalid JSON format")
+                }
+
+            }
+        })
     }
 
     private var isOn = false
