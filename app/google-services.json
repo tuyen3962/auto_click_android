@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "137584430277",
+    "project_id": "auto-click-8c30b",
+    "storage_bucket": "auto-click-8c30b.appspot.com"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:137584430277:android:77c7d96b08197200a274ac",
+        "android_client_info": {
+          "package_name": "com.example.autoclickapp"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyB208xuRtfAuYfZZV8tjIJ-xqiI8BdOE7U"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
