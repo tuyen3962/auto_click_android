@@ -9,6 +9,7 @@ import android.util.Log
  * By nesto
  */
 private const val TAG = "AutoClickService"
+const val NAME = "AutoClick"
 
 fun Any.logd(tag: String = TAG) {
     if (this is String) {

@@ -3,10 +3,12 @@ package com.example.autoclickapp.service
 import android.app.Service
 import android.content.Context
 import android.content.Intent
-import android.content.res.Configuration
 import android.graphics.PixelFormat
 import android.os.Build
+import android.os.Handler
 import android.os.IBinder
+import android.os.Looper
+import android.util.DisplayMetrics
 import android.util.Log
 import android.view.Gravity
 import android.view.LayoutInflater
@@ -14,9 +16,8 @@ import android.view.View
 import android.view.WindowManager
 import android.widget.ImageView
 import android.widget.TextView
-import androidx.compose.foundation.interaction.MutableInteractionSource
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
+import com.example.autoclickapp.ClickTime
+import com.example.autoclickapp.NAME
 import com.example.autoclickapp.R
 import com.example.autoclickapp.TouchAndDragListener
 import com.example.autoclickapp.dp2px
@@ -49,7 +50,9 @@ class FloatingClickService : Service() {
     private var yForRecord = 0
     private val location = IntArray(2)
     private var startDragDistance: Int = 0
-    private var timer: Timer? = null
+    private var countTimer: Timer? = null
+    private lateinit var  handler: Handler
+    private lateinit var intent: Intent
     var isPlay = false
 
     private val client = OkHttpClient()
@@ -59,15 +62,19 @@ class FloatingClickService : Service() {
 //    val coroutine = rememberCoroutineScope()
 
     override fun onBind(intent: Intent): IBinder? {
+        this.intent = intent
         return null
     }
 
     override fun onCreate() {
         super.onCreate()
+        handler = Handler(Looper.getMainLooper())
         startDragDistance = dp2px(10f)
         autoTapView = LayoutInflater.from(this).inflate(R.layout.widget, null)
         settingView = LayoutInflater.from(this).inflate(R.layout.auto_click_setting, null)
         timeView = LayoutInflater.from(this).inflate(R.layout.auto_time, null)
+
+        _startCountTimer()
 
         //setting the layout parameters
         val overlayParam =
@@ -113,18 +120,41 @@ class FloatingClickService : Service() {
 
         settingView.findViewById<ImageView>(R.id.play_icon).setOnClickListener {
             isPlay = !isPlay
-            if(isPlay) {
-                settingView.findViewById<ImageView>(R.id.play_icon).setImageResource(R.drawable.setting)
-            } else {
-                settingView.findViewById<ImageView>(R.id.play_icon).setImageResource(R.drawable.play)
+            handler.post {
+                if(isPlay) {
+                    settingView.findViewById<ImageView>(R.id.play_icon).setImageResource(R.drawable.pause)
+                } else {
+                    settingView.findViewById<ImageView>(R.id.play_icon).setImageResource(R.drawable.play)
+                }
             }
             viewOnClick()
         }
 
-        settingView.setOnTouchListener(TouchAndDragListener(settingParams, startDragDistance,
-            {
+        settingView.findViewById<ImageView>(R.id.setting_icon).setOnClickListener {
+//            stopService(Intent(this, FloatingClickService::class.java))
+            val displayMetrics = DisplayMetrics()
+            manager.getDefaultDisplay().getMetrics(displayMetrics)
+            val height = displayMetrics.heightPixels
+            val width = displayMetrics.widthPixels
+            Log.i("Screen",String.format("%d %d", height, width))
 
-            },
+//            2177 1080
+
+            autoTapView.findViewById<ImageView>(R.id.circle_icon).setImageResource(R.drawable.clicked)
+            autoTapView.getLocationOnScreen(location)
+            val posX = location[0] + autoTapView.right
+            val posY = location[1] + autoTapView.bottom - 50
+            Log.i("POSITION",String.format("%d %d", location[0] + autoTapView.right+1, location[1] + autoTapView.bottom+1))
+            Log.i("POSITION",String.format("%d %d", posX, posY))
+
+            autoClickService?.click(posX, posY)
+            handler.postDelayed({
+                autoTapView.findViewById<ImageView>(R.id.circle_icon).setImageResource(R.drawable.click)
+            }, 10)
+        }
+
+        settingView.setOnTouchListener(TouchAndDragListener(settingParams, startDragDistance,
+            { },
             {
                 if(!isOn) {
                     manager.updateViewLayout(settingView, settingParams)
@@ -136,6 +166,12 @@ class FloatingClickService : Service() {
             {    manager.updateViewLayout(timeView, timeParams) }))
 
         onCallTimeAPI()
+    }
+
+    private fun _startCountTimer() {
+        countTimer = fixedRateTimer(initialDelay = 0, period = 100) {
+            onCallTimeAPI()
+        }
     }
 
     private fun onCallTimeAPI() {
@@ -153,13 +189,19 @@ class FloatingClickService : Service() {
                     null // Handle the exception, e.g., return null or log the error
                 }
                 if (jsonObject != null) {
-
                     val hour = jsonObject.get("hour").asInt
                     val minute = jsonObject.get("minute").asInt
                     val seconds = jsonObject.get("seconds").asInt
                     val milliSeconds = jsonObject.get("milliSeconds").asInt
-                    val fullTime = String.format("%d:%d:%d:%d", hour, minute, seconds, milliSeconds)
-                    timeView.findViewById<TextView>(R.id.auto_time_text).text = fullTime
+                    val msText =  (milliSeconds / 100) * 100
+                    handler.post {
+                        val fullTime = String.format("%s:%s:%s:%s", getTimeFormat(hour), getTimeFormat(minute), getTimeFormat(seconds), getMsFormat(msText))
+
+                        timeView.findViewById<TextView>(R.id.auto_time_text).text = fullTime
+                        if(isOn) {
+                            autoClick(ClickTime(hour, minute, seconds, milliSeconds))
+                        }
+                    }
                 } else {
                     println("Invalid JSON format")
                 }
@@ -168,30 +210,66 @@ class FloatingClickService : Service() {
         })
     }
 
+    private fun getTimeFormat(time: Int) : String {
+        if(time < 10) {
+            return String.format("0%d", time)
+        } else {
+            return time.toString()
+        }
+    }
+
+    private fun getMsFormat(time: Int) : String {
+        if(time > 0) {
+            return String.format("%d", time)
+        } else {
+            return "000"
+        }
+    }
+
+
+    private fun autoClick(currentTime: ClickTime) {
+        val preferences = this.getSharedPreferences(NAME, Context.MODE_PRIVATE)
+        val clickTime = ClickTime(
+            preferences.getInt(getString(R.string.hour_click_time), 0),
+            preferences.getInt(getString(R.string.minute_click_time), 0),
+            preferences.getInt(getString(R.string.second_click_time), 0),
+            preferences.getInt(getString(R.string.millisecond_click_time), 0)
+        )
+
+        if(clickTime.isSameTime(currentTime)) {
+            autoTapView.findViewById<ImageView>(R.id.circle_icon).setImageResource(R.drawable.clicked)
+            handler.postDelayed({
+                autoTapView.getLocationOnScreen(location)
+                autoClickService?.click(location[0] + autoTapView.right+1,
+                    location[1] + autoTapView.bottom+1)
+                autoTapView.findViewById<ImageView>(R.id.circle_icon).setImageResource(R.drawable.click)
+            }, 10)
+        }
+    }
+
     private var isOn = false
     private fun viewOnClick() {
-        if (isOn) {
-            timer?.cancel()
-        } else {
-            timer = fixedRateTimer(initialDelay = 0,
-                    period = 200) {
-                autoTapView.getLocationOnScreen(location)
-                Log.i("LOCATION", location[0].toString())
-                Log.i("LOCATION", location[1].toString())
-                autoClickService?.click(location[0] + autoTapView.right+1,
-                        location[1] + autoTapView.bottom+1)
-            }
-        }
+//        if (isOn) {
+//            timer?.cancel()
+//        } else {
+//            timer = fixedRateTimer(initialDelay = 0,
+//                    period = 200) {
+//                autoTapView.getLocationOnScreen(location)
+//                Log.i("LOCATION", location[0].toString())
+//                Log.i("LOCATION", location[1].toString())
+//                autoClickService?.click(location[0] + autoTapView.right+1,
+//                        location[1] + autoTapView.bottom+1)
+//            }
+//        }
         isOn = !isOn
-//        (autoTapView as TextView).text = if (isOn) "ON" else "OFF"
-
     }
 
     override fun onDestroy() {
         super.onDestroy()
         "FloatingClickService onDestroy".logd()
-        timer?.cancel()
+        countTimer?.cancel()
         manager.removeView(autoTapView)
         manager.removeView(settingView)
+        manager.removeView(timeView)
     }
 }
