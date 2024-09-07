@@ -131,26 +131,14 @@ class FloatingClickService : Service() {
         }
 
         settingView.findViewById<ImageView>(R.id.setting_icon).setOnClickListener {
-//            stopService(Intent(this, FloatingClickService::class.java))
-            val displayMetrics = DisplayMetrics()
-            manager.getDefaultDisplay().getMetrics(displayMetrics)
-            val height = displayMetrics.heightPixels
-            val width = displayMetrics.widthPixels
-            Log.i("Screen",String.format("%d %d", height, width))
+            stopService(Intent(this, FloatingClickService::class.java))
+//            val displayMetrics = DisplayMetrics()
+//            manager.getDefaultDisplay().getMetrics(displayMetrics)
+//            val height = displayMetrics.heightPixels
+//            val width = displayMetrics.widthPixels
+//            Log.i("Screen",String.format("%d %d", height, width))
 
-//            2177 1080
-
-            autoTapView.findViewById<ImageView>(R.id.circle_icon).setImageResource(R.drawable.clicked)
-            autoTapView.getLocationOnScreen(location)
-            val posX = location[0] + autoTapView.right
-            val posY = location[1] + autoTapView.bottom - 50
-            Log.i("POSITION",String.format("%d %d", location[0] + autoTapView.right+1, location[1] + autoTapView.bottom+1))
-            Log.i("POSITION",String.format("%d %d", posX, posY))
-
-            autoClickService?.click(posX, posY)
-            handler.postDelayed({
-                autoTapView.findViewById<ImageView>(R.id.circle_icon).setImageResource(R.drawable.click)
-            }, 10)
+//            handleAutoClick()
         }
 
         settingView.setOnTouchListener(TouchAndDragListener(settingParams, startDragDistance,
@@ -235,16 +223,25 @@ class FloatingClickService : Service() {
             preferences.getInt(getString(R.string.second_click_time), 0),
             preferences.getInt(getString(R.string.millisecond_click_time), 0)
         )
-
+        Log.i("Compare time", String.format("%s - %s", clickTime.toString(), currentTime.toString()) )
+        Log.i("Time", clickTime.isSameTime(currentTime).toString())
         if(clickTime.isSameTime(currentTime)) {
-            autoTapView.findViewById<ImageView>(R.id.circle_icon).setImageResource(R.drawable.clicked)
+            handleAutoClick()
+        }
+    }
+
+    private fun handleAutoClick() {
+        autoTapView.findViewById<ImageView>(R.id.circle_icon).setImageResource(R.drawable.clicked)
+            autoTapView.getLocationOnScreen(location)
+            val posX = location[0] + autoTapView.right
+            val posY = location[1] + autoTapView.bottom - 50
+            Log.i("POSITION",String.format("%d %d", location[0] + autoTapView.right+1, location[1] + autoTapView.bottom+1))
+            Log.i("POSITION",String.format("%d %d", posX, posY))
+
+            autoClickService?.click(posX, posY)
             handler.postDelayed({
-                autoTapView.getLocationOnScreen(location)
-                autoClickService?.click(location[0] + autoTapView.right+1,
-                    location[1] + autoTapView.bottom+1)
                 autoTapView.findViewById<ImageView>(R.id.circle_icon).setImageResource(R.drawable.click)
             }, 10)
-        }
     }
 
     private var isOn = false
