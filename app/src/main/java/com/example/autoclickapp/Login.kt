@@ -1,5 +1,6 @@
 package com.example.autoclickapp
 
+import android.content.Context
 import android.content.Intent
 import android.os.Bundle
 import android.widget.Button
@@ -17,6 +18,17 @@ class Login : AppCompatActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+
+        val sharedPref = getSharedPreferences("loginPrefs", Context.MODE_PRIVATE)
+        val isLoggedIn = sharedPref.getBoolean("isLoggedIn", false)
+
+        if (isLoggedIn) {
+            startActivity(Intent(this, MainActivity::class.java))
+            finish()
+            return
+        }
+
+
         setContentView(R.layout.login)
 
         auth = FirebaseAuth.getInstance()
@@ -43,6 +55,12 @@ class Login : AppCompatActivity() {
             .addOnCompleteListener(this) { task ->
                 if (task.isSuccessful) {
                     Toast.makeText(this, "Đăng nhập thành công", Toast.LENGTH_SHORT).show()
+
+                    val sharedPref = getSharedPreferences("loginPrefs", Context.MODE_PRIVATE)
+                    with(sharedPref.edit()) {
+                        putBoolean("isLoggedIn", true)
+                        apply()
+                    }
 
                     val intent = Intent(this, MainActivity::class.java)
                     startActivity(intent)
