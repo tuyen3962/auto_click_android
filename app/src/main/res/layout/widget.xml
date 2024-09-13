@@ -8,6 +8,7 @@
         android:id="@+id/circle_icon"
         android:layout_width="100px"
         android:layout_height="100px"
+        android:rotation="180"
         android:src="@drawable/click" />
 
 

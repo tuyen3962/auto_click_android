@@ -53,6 +53,8 @@ class FloatingClickService : Service() {
     private var countTimer: Timer? = null
     private lateinit var  handler: Handler
     private lateinit var intent: Intent
+    private lateinit var clickIcon: ImageView
+    private lateinit var currentTime: ClickTime
     var isPlay = false
 
     private val client = OkHttpClient()
@@ -73,8 +75,7 @@ class FloatingClickService : Service() {
         autoTapView = LayoutInflater.from(this).inflate(R.layout.widget, null)
         settingView = LayoutInflater.from(this).inflate(R.layout.auto_click_setting, null)
         timeView = LayoutInflater.from(this).inflate(R.layout.auto_time, null)
-
-        _startCountTimer()
+        clickIcon = autoTapView.findViewById<ImageView>(R.id.circle_icon)
 
         //setting the layout parameters
         val overlayParam =
@@ -132,13 +133,6 @@ class FloatingClickService : Service() {
 
         settingView.findViewById<ImageView>(R.id.setting_icon).setOnClickListener {
             stopService(Intent(this, FloatingClickService::class.java))
-//            val displayMetrics = DisplayMetrics()
-//            manager.getDefaultDisplay().getMetrics(displayMetrics)
-//            val height = displayMetrics.heightPixels
-//            val width = displayMetrics.widthPixels
-//            Log.i("Screen",String.format("%d %d", height, width))
-
-//            handleAutoClick()
         }
 
         settingView.setOnTouchListener(TouchAndDragListener(settingParams, startDragDistance,
@@ -158,7 +152,8 @@ class FloatingClickService : Service() {
 
     private fun _startCountTimer() {
         countTimer = fixedRateTimer(initialDelay = 0, period = 100) {
-            onCallTimeAPI()
+            currentTime = currentTime.increaseTime(100)
+            _validateAndHandleClick()
         }
     }
 
@@ -181,21 +176,25 @@ class FloatingClickService : Service() {
                     val minute = jsonObject.get("minute").asInt
                     val seconds = jsonObject.get("seconds").asInt
                     val milliSeconds = jsonObject.get("milliSeconds").asInt
-                    val msText =  (milliSeconds / 100) * 100
-                    handler.post {
-                        val fullTime = String.format("%s:%s:%s:%s", getTimeFormat(hour), getTimeFormat(minute), getTimeFormat(seconds), getMsFormat(msText))
-
-                        timeView.findViewById<TextView>(R.id.auto_time_text).text = fullTime
-                        if(isOn) {
-                            autoClick(ClickTime(hour, minute, seconds, milliSeconds))
-                        }
-                    }
+//                    val msText =  (milliSeconds / 100) * 100
+                    currentTime = ClickTime(hour, minute, seconds, milliSeconds)
+                    _validateAndHandleClick()
+                    _startCountTimer()
                 } else {
                     println("Invalid JSON format")
                 }
 
             }
         })
+    }
+
+    private fun _validateAndHandleClick() {
+        handler.post {
+            timeView.findViewById<TextView>(R.id.auto_time_text).text = currentTime.toString()
+            if(isOn) {
+                autoClick(currentTime)
+            }
+        }
     }
 
     private fun getTimeFormat(time: Int) : String {
@@ -231,7 +230,7 @@ class FloatingClickService : Service() {
     }
 
     private fun handleAutoClick() {
-        autoTapView.findViewById<ImageView>(R.id.circle_icon).setImageResource(R.drawable.clicked)
+        clickIcon.setImageResource(R.drawable.clicked)
             autoTapView.getLocationOnScreen(location)
             val posX = location[0] + autoTapView.right
             val posY = location[1] + autoTapView.bottom - 50
@@ -240,8 +239,8 @@ class FloatingClickService : Service() {
 
             autoClickService?.click(posX, posY)
             handler.postDelayed({
-                autoTapView.findViewById<ImageView>(R.id.circle_icon).setImageResource(R.drawable.click)
-            }, 10)
+                clickIcon.setImageResource(R.drawable.click)
+            }, 50)
     }
 
     private var isOn = false
